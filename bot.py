@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -94,6 +95,11 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No se encontraron tarjetas válidas en tu mensaje. Asegúrate de usar el formato: `numero|mes|año|cvc`")
         return
 
+    personal_info = config.get('personal_info')
+    if not personal_info:
+        await update.message.reply_text("Error: La sección `personal_info` no está configurada en `config.json`.")
+        return
+
     await update.message.reply_text(f"Iniciando proceso de donación con {len(cards_to_process)} tarjeta(s)... 🚀")
 
     donation_successful = False
@@ -102,13 +108,19 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"💳 Intentando con {card_nickname}...")
 
         try:
-            success, message = await perform_donation(card)
+            success, message = await perform_donation(personal_info, card)
             if success:
                 await update.message.reply_text(f"✅ ¡Donación exitosa con {card_nickname}!\nMotivo: {message}")
                 donation_successful = True
                 break
             else:
                 await update.message.reply_text(f"❌ Falló la donación con {card_nickname}.\nMotivo: {message}")
+                # Enviar captura de pantalla si existe
+                if os.path.exists("post-payment-error.png"):
+                    await update.message.reply_photo(
+                        photo=open("post-payment-error.png", "rb"),
+                        caption="Captura de pantalla del error."
+                    )
 
         except Exception as e:
             logger.error(f"Error crítico al procesar {card_nickname}: {e}")

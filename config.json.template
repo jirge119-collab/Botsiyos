@@ -1,8 +1,13 @@
 {
   "telegram_bot_token": "AQUI_VA_TU_TOKEN_DE_TELEGRAM",
   "allowed_user_ids": [
-    123456789,
-    987654321
+    123456789
   ],
-  "security_warning": "ADVERTENCIA: El primer ID en la lista 'allowed_user_ids' es el administrador del bot. No compartas el token."
+  "personal_info": {
+    "rut": "11.111.111-1",
+    "nombre": "TuNombre",
+    "apellido": "TuApellido",
+    "email": "tu.email@ejemplo.com"
+  },
+  "security_warning": "ADVERTENCIA: El primer ID en la lista 'allowed_user_ids' es el administrador del bot."
 }
