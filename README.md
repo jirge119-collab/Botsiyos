@@ -1,43 +1,36 @@
-# Bot de Pago Recurrente Automatizado
+# Bot de Donación Automatizada v2.4 (Formulario Completo)
 
-Esta versión del bot de Telegram está diseñada para automatizar un **pago recurrente** o con tarjeta guardada en una página específica.
+Esta es la versión más reciente del bot, que vuelve a implementar la lógica para rellenar un formulario de donación completo, incluyendo datos personales y de tarjeta de crédito.
 
-**IMPORTANTE:** Este bot ya **NO** funciona con el formulario de donación público. Su única función es navegar a la URL de pago recurrente y hacer clic en el botón de confirmación.
+**LA CLAVE DEL ÉXITO:** Este bot **SÓLO FUNCIONARÁ** si tú, el usuario, proporcionas los **selectores CSS correctos** para cada campo del formulario en el archivo `automation.py`.
 
-## Características Principales
-- **Automatización de Pago Recurrente:** Navega a la URL de pago y hace clic en el botón de confirmación.
-- **Gestión de Usuarios:** Un administrador puede añadir o eliminar a otros usuarios autorizados.
-- **Diagnóstico de Errores:** En caso de fallo, el bot envía una captura de pantalla del error directamente a Telegram.
+## Características
+- **Relleno de Formulario Completo:** Intenta rellenar datos personales y de tarjeta.
+- **Selectores Configurables:** Todos los selectores están en un solo lugar (`automation.py`) para que los puedas actualizar fácilmente.
+- **Gestión de Usuarios:** Un administrador puede autorizar a otros usuarios.
+- **Diagnóstico de Errores:** Envía capturas de pantalla a Telegram si algo falla.
 
-## Instrucciones de Configuración
+## Instrucciones
 
-### Paso 1: Descargar el Código
+### 1. Configurar el Bot
+- Copia `config.json.template` a `config.json`.
+- Rellena tu `telegram_bot_token`, la lista de `allowed_user_ids` (poniendo tu ID primero como admin) y la sección `personal_info`.
 
-### Paso 2: Instalar Dependencias
-```bash
-pip install -r requirements.txt
-playwright install
-```
+### 2. **ACTUALIZAR LOS SELECTORES (PASO OBLIGATORIO)**
+- **Abre `automation.py`**. Verás un diccionario llamado `SELECTORS` al principio.
+- **Abre la página web** de la donación en tu navegador.
+- Para **CADA CAMPO** del formulario (RUT, nombre, número de tarjeta, etc.), haz lo siguiente:
+    1. Clic derecho en el campo -> **Inspeccionar**.
+    2. En el código que aparece, clic derecho en la línea resaltada -> **Copiar > Copiar selector**.
+    3. **Pega** el selector que copiaste en el valor correspondiente dentro del diccionario `SELECTORS` en `automation.py`.
+- **Guarda el archivo `automation.py`**.
 
-### Paso 3: Configurar el Bot
-1.  Copia `config.json.template` y renómbralo a `config.json`.
-2.  Abre `config.json` y rellena `telegram_bot_token` y `allowed_user_ids` (poniendo tu ID como el primero para ser admin).
-3.  **Abre `automation.py` y actualiza la variable `DONATION_URL`** con la URL de pago recurrente que desees automatizar. La URL en el código es un ejemplo y probablemente sea específica de una sesión.
+### 3. Instalar Dependencias y Ejecutar
+- Abre una terminal en la carpeta del bot.
+- Ejecuta `pip install -r requirements.txt`.
+- Ejecuta `playwright install`.
+- Ejecuta `python bot.py`.
 
-### Paso 4: Ejecutar el Bot
-`python bot.py`
-
-## Lista de Comandos (`.cmds`)
-Escribe `.cmds` para ver esta lista.
-
-- `/id`: Te responde con tu ID de usuario.
-- `/ping`: Responde "pong" para verificar que el bot está activo.
-- `/donar`: **Inicia el proceso de pago recurrente.** Ya no necesitas pasar datos de tarjeta.
-- `/adduser <ID>`: (Admin) Autoriza a un nuevo usuario.
-- `/removeuser <ID>`: (Admin) Revoca el acceso a un usuario.
-- `/listusers`: (Admin) Muestra la lista de usuarios autorizados.
-
-## Solución de Problemas
-Si el bot falla, lo más probable es que el selector del botón de confirmación haya cambiado.
-- **Abre `automation.py`** y busca el diccionario `SELECTORS`.
-- **Actualiza el valor de `confirm_payment_button`** con el selector CSS correcto del botón en la nueva página. Puedes obtenerlo haciendo clic derecho sobre el botón -> Inspeccionar -> Copiar -> Copiar selector.
+## Comandos
+- Escribe `.cmds` para ver la lista de comandos.
+- `/donar <numero_tarjeta|mes|año|cvc>`: Inicia el proceso de donación con la tarjeta indicada.

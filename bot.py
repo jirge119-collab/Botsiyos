@@ -37,97 +37,92 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /start y explica cómo usar /donar."""
     user_id = update.effective_user.id
     if config and user_id in config.get('allowed_user_ids', []):
-        await update.message.reply_text("Bot de pago recurrente listo. Usa /donar para iniciar.")
+        await update.message.reply_text("Bot listo. Usa /donar seguido de los datos de la tarjeta para iniciar.")
     else:
         await update.message.reply_text("No tienes permiso para usar este bot.")
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /donar, mostrando una barra de progreso animada."""
+    """Maneja el comando /donar, procesando los datos de la tarjeta y ejecutando la automatización."""
     user_id = update.effective_user.id
     if not config or user_id not in config.get('allowed_user_ids', []):
         await update.message.reply_text("No tienes permiso para usar este bot.")
         return
 
-    # --- Lógica de la Barra de Progreso ---
-    progress_bar_frames = [
-        "[          ]",
-        "[■         ]",
-        "[■■        ]",
-        "[■■■       ]",
-        "[■■■■      ]",
-        "[■■■■■     ]",
-        "[■■■■■■    ]",
-        "[■■■■■■■   ]",
-        "[■■■■■■■■  ]",
-        "[■■■■■■■■■ ]",
-        "[■■■■■■■■■■]"
-    ]
+    # --- Re-introducir el procesamiento de datos de tarjeta ---
+    message_text = update.message.text
+    command_text = "/donar"
+    cards_text = message_text[len(command_text):].strip()
 
-    # Enviar mensaje inicial
+    if not cards_text:
+        await update.message.reply_text("Uso: /donar <numero_tarjeta|mes|año|cvc>")
+        return
+
+    # Asumimos una sola tarjeta por comando para simplificar
+    parts = [p.strip() for p in cards_text.split('|')]
+    if len(parts) != 4:
+        await update.message.reply_text("Formato incorrecto. Usa: numero_tarjeta|mes|año|cvc")
+        return
+
+    card_info = {
+        "card_number": parts[0], "expiry_month": parts[1],
+        "expiry_year": parts[2], "cvc": parts[3]
+    }
+
+    personal_info = config.get('personal_info')
+    if not personal_info:
+        await update.message.reply_text("Error: La sección `personal_info` no está configurada en `config.json`.")
+        return
+
+    # --- Lógica de la Barra de Progreso ---
+    progress_bar_frames = ["[■■□□□□]", "[■■■□□□]", "[■■■■□□]", "[■■■■■□]", "[■■■■■■]"]
     progress_message = await update.message.reply_text(f"Iniciando... {progress_bar_frames[0]}")
 
-    # Crear y ejecutar la tarea de automatización en segundo plano
-    automation_task = asyncio.create_task(perform_donation())
+    automation_task = asyncio.create_task(perform_donation(personal_info, card_info))
 
-    # Animar la barra de progreso mientras la tarea se ejecuta
     frame_index = 0
     while not automation_task.done():
         frame_index = (frame_index + 1) % len(progress_bar_frames)
         try:
-            await progress_message.edit_text(f"Procesando pago... {progress_bar_frames[frame_index]}")
+            await progress_message.edit_text(f"Procesando... {progress_bar_frames[frame_index]}")
         except BadRequest as e:
             if "Message is not modified" not in str(e):
                 logger.warning(f"Error al editar mensaje (ignorado): {e}")
-        await asyncio.sleep(1) # Editar el mensaje cada segundo
+        await asyncio.sleep(1.5)
 
-    # --- Procesar el resultado de la tarea ---
+    # --- Procesar el resultado ---
     try:
         success, message = await automation_task
-        if success:
-            final_text = f"✅ ¡Pago exitoso!\nMotivo: {message}"
-            await progress_message.edit_text(final_text)
-        else:
-            final_text = f"❌ Falló el pago.\nMotivo: {message}"
-            await progress_message.edit_text(final_text)
-            if os.path.exists("post-payment-error.png"):
-                await update.message.reply_photo(
-                    photo=open("post-payment-error.png", "rb"),
-                    caption="Captura de pantalla del error."
-                )
+        final_text = f"✅ ¡Éxito!" if success else f"❌ Falló."
+        final_text += f"\nMotivo: {message}"
+        await progress_message.edit_text(final_text)
+
+        if not success and os.path.exists("post-payment-error.png"):
+            await update.message.reply_photo(photo=open("post-payment-error.png", "rb"))
+
     except Exception as e:
         logger.error(f"Error crítico al procesar el pago: {e}")
-        await progress_message.edit_text(f"⚠️ Ocurrió un error inesperado. Revisa los logs del bot.")
+        await progress_message.edit_text(f"⚠️ Ocurrió un error inesperado.")
 
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Un comando público para que cualquier usuario pueda obtener su ID de Telegram."""
     user_id = update.effective_user.id
-    await update.message.reply_text(f"Tu ID de usuario de Telegram es: `{user_id}`")
-
+    await update.message.reply_text(f"`{user_id}`", parse_mode='Markdown')
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Responde con 'pong' para verificar que el bot está activo."""
     await update.message.reply_text("pong")
 
-
-# --- Funciones de Administración ---
-
+# --- Funciones de Administración (sin cambios) ---
 def is_admin(user_id: int) -> bool:
-    """Verifica si el user_id es el del administrador (el primero en la lista)."""
     if not config or not config.get('allowed_user_ids'): return False
     return user_id == config['allowed_user_ids'][0]
 
 def save_config(new_config: dict):
-    """Guarda la configuración actualizada en el archivo config.json."""
     global config
-    with open('config.json', 'w') as f:
-        json.dump(new_config, f, indent=2)
+    with open('config.json', 'w') as f: json.dump(new_config, f, indent=2)
     config = new_config
 
 async def adduser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("Este comando solo puede ser usado por el administrador.")
-        return
+    if not is_admin(update.effective_user.id): return
     try:
         new_user_id = int(context.args[0])
         if new_user_id not in config['allowed_user_ids']:
@@ -137,7 +132,7 @@ async def adduser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("El usuario ya está en la lista.")
     except (IndexError, ValueError):
-        await update.message.reply_text("Uso: /adduser <ID_del_usuario>")
+        await update.message.reply_text("Uso: /adduser <ID>")
 
 async def removeuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
@@ -153,21 +148,21 @@ async def removeuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             await update.message.reply_text("El usuario no se encuentra en la lista.")
     except (IndexError, ValueError):
-        await update.message.reply_text("Uso: /removeuser <ID_del_usuario>")
+        await update.message.reply_text("Uso: /removeuser <ID>")
 
 async def listusers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     user_list = "\n".join([f"- `{uid}`" for uid in config.get('allowed_user_ids', [])])
     admin_id = config.get('allowed_user_ids', [None])[0]
-    message = f"**Usuarios Autorizados:**\n{user_list}\n\nEl administrador es: `{admin_id}`"
+    message = f"**Usuarios Autorizados:**\n{user_list}\n\nAdmin: `{admin_id}`"
     await update.message.reply_text(message, parse_mode='Markdown')
 
 async def cmds_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_user_admin = is_admin(user_id)
     is_user_allowed = user_id in config.get('allowed_user_ids', [])
-    help_text = "📜 **Comandos Disponibles** 📜\n\n/id - Muestra tu ID.\n/ping - Verifica si el bot está activo.\n"
-    if is_user_allowed: help_text += "/donar - Inicia el pago recurrente.\n"
+    help_text = "📜 **Comandos** 📜\n\n/id\n/ping\n"
+    if is_user_allowed: help_text += "/donar <tarjeta|mes|año|cvv>\n"
     if is_user_admin: help_text += "\n--- Admin ---\n/adduser <ID>\n/removeuser <ID>\n/listusers\n"
     help_text += "\n.cmds - Muestra esta ayuda."
     await update.message.reply_text(help_text, parse_mode='Markdown')
@@ -176,7 +171,7 @@ async def cmds_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     if not config: return
     bot_token = config.get('telegram_bot_token')
-    if not bot_token or bot_token == "AQUI_VA_TU_TOKEN_DE_TELEGRAM":
+    if not bot_token or "AQUI" in bot_token:
         logger.error("Token no configurado en 'config.json'.")
         return
 
