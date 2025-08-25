@@ -1,0 +1,24 @@
+{
+  "telegram_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
+  "authorized_users": [
+    "YOUR_TELEGRAM_CHAT_ID_HERE"
+  ],
+  "cards": [
+    {
+      "card_holder": "John Doe",
+      "card_number": "4929000000000000",
+      "expiry_month": "12",
+      "expiry_year": "25",
+      "cvv": "123",
+      "email": "john.doe@example.com"
+    },
+    {
+      "card_holder": "Jane Smith",
+      "card_number": "5105105105105100",
+      "expiry_month": "06",
+      "expiry_year": "26",
+      "cvv": "456",
+      "email": "jane.smith@example.com"
+    }
+  ]
+}
