@@ -37,12 +37,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "¡Hola! Soy tu bot de donaciones v2. 👋\n\n"
             "Para iniciar una donación, usa el comando /donar seguido de los datos de tus tarjetas, una por línea.\n\n"
-            "El formato para cada tarjeta es: `numero,mes,año,cvc`\n\n"
+            "El formato para cada tarjeta es: `numero|mes|año|cvc`\n\n"
             "**Ejemplo de uso:**\n"
             "```\n"
             "/donar\n"
-            "1111222233334444,12,2028,123\n"
-            "5555666677778888,06,2027,456\n"
+            "1111222233334444|12|2028|123\n"
+            "5555666677778888|06|2027|456\n"
             "```"
         )
     else:
@@ -78,7 +78,7 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for line in lines:
         if not line.strip():
             continue
-        parts = [p.strip() for p in line.split(',')]
+        parts = [p.strip() for p in line.split('|')]
         if len(parts) == 4:
             card_info = {
                 "card_number": parts[0],
@@ -91,7 +91,7 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"⚠️ Línea ignorada por formato incorrecto: `{line}`")
 
     if not cards_to_process:
-        await update.message.reply_text("No se encontraron tarjetas válidas en tu mensaje. Asegúrate de usar el formato: `numero,mes,año,cvc`")
+        await update.message.reply_text("No se encontraron tarjetas válidas en tu mensaje. Asegúrate de usar el formato: `numero|mes|año|cvc`")
         return
 
     await update.message.reply_text(f"Iniciando proceso de donación con {len(cards_to_process)} tarjeta(s)... 🚀")

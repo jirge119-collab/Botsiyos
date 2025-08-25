@@ -43,21 +43,21 @@ Descarga o clona el código y descomprímelo en una carpeta.
 3.  Para realizar una donación, envía el comando `/donar` seguido de los datos de tus tarjetas en las líneas siguientes.
 
 ### Formato del Comando `/donar`
-Cada tarjeta debe estar en una nueva línea y sus datos deben estar separados por comas, sin espacios, en el siguiente orden:
-`numero_de_tarjeta,mes_de_expiracion,año_de_expiracion,cvc`
+Cada tarjeta debe estar en una nueva línea y sus datos deben estar separados por una barra vertical (`|`), sin espacios, en el siguiente orden:
+`numero_de_tarjeta|mes_de_expiracion|año_de_expiracion|cvc`
 
 **Ejemplo para una tarjeta:**
 ```
 /donar
-1111222233334444,12,2028,123
+1111222233334444|12|2028|123
 ```
 
 **Ejemplo para múltiples tarjetas:**
 ```
 /donar
-1111222233334444,12,2028,123
-5555666677778888,06,2027,456
-9876543210987654,01,2026,789
+1111222233334444|12|2028|123
+5555666677778888|06|2027|456
+9876543210987654|01|2026|789
 ```
 
 El bot procesará las tarjetas en el orden en que las enviaste. Si una falla, te lo notificará y continuará con la siguiente. Si una tiene éxito, el proceso se detendrá.
