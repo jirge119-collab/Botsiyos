@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from telegram import Update
@@ -7,7 +6,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 # Importar la función de automatización
 from automation import perform_donation
 
-# Configurar logging para ver información útil en la consola
+# Configurar logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -21,11 +20,10 @@ def load_config():
         with open('config.json', 'r') as f:
             return json.load(f)
     except FileNotFoundError:
-        logger.error("Error: El archivo 'config.json' no se encontró.")
-        logger.info("Por favor, copia 'config.json.template', renómbralo a 'config.json' y rellena tus datos.")
+        logger.error("Error: 'config.json' no encontrado. Por favor, crea uno a partir de 'config.json.template'.")
         return None
     except json.JSONDecodeError:
-        logger.error("Error: El archivo 'config.json' tiene un formato incorrecto.")
+        logger.error("Error: 'config.json' tiene un formato incorrecto.")
         return None
 
 config = load_config()
@@ -33,60 +31,91 @@ config = load_config()
 # --- Funciones de Comandos del Bot ---
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /start."""
+    """Maneja el comando /start y explica cómo usar /donar."""
     user_id = update.effective_user.id
     if config and user_id == config.get('allowed_user_id'):
         await update.message.reply_text(
-            "¡Hola! Soy tu bot de donaciones. 👋\n"
-            "Estoy listo para ayudarte a automatizar tus donaciones.\n\n"
-            "Usa el comando /donar para iniciar el proceso."
+            "¡Hola! Soy tu bot de donaciones v2. 👋\n\n"
+            "Para iniciar una donación, usa el comando /donar seguido de los datos de tus tarjetas, una por línea.\n\n"
+            "El formato para cada tarjeta es: `numero,mes,año,cvc`\n\n"
+            "**Ejemplo de uso:**\n"
+            "```\n"
+            "/donar\n"
+            "1111222233334444,12,2028,123\n"
+            "5555666677778888,06,2027,456\n"
+            "```"
         )
     else:
         logger.warning(f"Acceso no autorizado denegado al usuario con ID: {user_id}")
         await update.message.reply_text("No tienes permiso para usar este bot.")
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /donar, que inicia el proceso de donación."""
+    """Maneja el comando /donar, que procesa las tarjetas y ejecuta la donación."""
     user_id = update.effective_user.id
     if not config or user_id != config.get('allowed_user_id'):
-        logger.warning(f"Acceso no autorizado denegado al usuario con ID: {user_id} para el comando /donar")
         await update.message.reply_text("No tienes permiso para usar este bot.")
         return
 
-    personal_info = config.get('personal_info')
-    cards = config.get('cards', [])
+    # Extraer el texto que viene después del comando /donar
+    message_text = update.message.text
+    command_text = "/donar"
+    cards_text = message_text[len(command_text):].strip()
 
-    if not personal_info or not cards:
-        await update.message.reply_text("Error: La información personal o la lista de tarjetas no está configurada correctamente en 'config.json'.")
+    if not cards_text:
+        await update.message.reply_text(
+            "Por favor, proporciona los datos de las tarjetas después del comando /donar.\n\n"
+            "Ejemplo:\n"
+            "```\n"
+            "/donar\n"
+            "1111222233334444,12,2028,123\n"
+            "```"
+        )
         return
 
-    await update.message.reply_text("Iniciando proceso de donación... 🚀\nIntentaré con cada tarjeta hasta que una funcione.")
+    # Procesar cada línea como una tarjeta
+    lines = cards_text.split('\n')
+    cards_to_process = []
+    for line in lines:
+        if not line.strip():
+            continue
+        parts = [p.strip() for p in line.split(',')]
+        if len(parts) == 4:
+            card_info = {
+                "card_number": parts[0],
+                "expiry_month": parts[1],
+                "expiry_year": parts[2],
+                "cvc": parts[3]
+            }
+            cards_to_process.append(card_info)
+        else:
+            await update.message.reply_text(f"⚠️ Línea ignorada por formato incorrecto: `{line}`")
+
+    if not cards_to_process:
+        await update.message.reply_text("No se encontraron tarjetas válidas en tu mensaje. Asegúrate de usar el formato: `numero,mes,año,cvc`")
+        return
+
+    await update.message.reply_text(f"Iniciando proceso de donación con {len(cards_to_process)} tarjeta(s)... 🚀")
 
     donation_successful = False
-    for i, card in enumerate(cards):
-        card_nickname = f"Tarjeta #{i + 1} (terminada en {card.get('card_number', '****')[-4:]})"
+    for i, card in enumerate(cards_to_process):
+        card_nickname = f"Tarjeta #{i + 1} (terminada en {card['card_number'][-4:]})"
         await update.message.reply_text(f"💳 Intentando con {card_nickname}...")
 
         try:
-            # Ejecutar la función de automatización asíncrona
-            success = await perform_donation(personal_info, card)
-
+            success = await perform_donation(card)
             if success:
-                success_message = f"✅ ¡Donación exitosa con {card_nickname}!"
-                await update.message.reply_text(success_message)
+                await update.message.reply_text(f"✅ ¡Donación exitosa con {card_nickname}!")
                 donation_successful = True
-                break  # Detener el proceso si una donación es exitosa
+                break
             else:
-                failure_message = f"❌ Falló la donación con {card_nickname}. Intentando con la siguiente."
-                await update.message.reply_text(failure_message)
+                await update.message.reply_text(f"❌ Falló la donación con {card_nickname}. Intentando con la siguiente.")
 
         except Exception as e:
-            logger.error(f"Ocurrió un error crítico al procesar {card_nickname}: {e}")
+            logger.error(f"Error crítico al procesar {card_nickname}: {e}")
             await update.message.reply_text(f"⚠️ Ocurrió un error inesperado con {card_nickname}. Revisa los logs.")
 
     if not donation_successful:
         await update.message.reply_text("🛑 Proceso finalizado. Ninguna de las tarjetas pudo completar la donación.")
-
 
 # --- Función Principal ---
 def main():
@@ -100,8 +129,6 @@ def main():
         return
 
     application = Application.builder().token(bot_token).build()
-
-    # Añadir manejadores de comandos
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("donar", donate_command))
 
