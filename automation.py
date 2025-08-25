@@ -1,6 +1,6 @@
 import asyncio
 import os
-from playwright.async_api import async_playwright, TimeoutError
+from playwright.async_api import async_playwright, TimeoutError, Error
 
 # --- CONFIGURACIÓN DE SELECTORES ---
 # Si el bot falla al rellenar los campos, actualiza estos valores.
@@ -42,19 +42,29 @@ async def perform_donation(personal_info: dict, card_info: dict) -> tuple[bool, 
             print(f"Iniciando donación para {personal_info['email']} con tarjeta {card_info['card_number'][-4:]}")
             await page.goto(DONATION_URL, timeout=60000)
 
-            # Usar selectores del diccionario de configuración
-            await page.locator(SELECTORS["rut"]).fill(personal_info['rut'])
-            await page.locator(SELECTORS["nombre"]).fill(personal_info['nombre'])
-            await page.locator(SELECTORS["apellido"]).fill(personal_info['apellido'])
-            await page.locator(SELECTORS["email"]).fill(personal_info['email'])
-            await page.locator(SELECTORS["concepto_aporte"]).select_option(label="Donación")
-            await page.locator(SELECTORS["monto"]).fill(DONATION_AMOUNT)
+            # --- Rellenar formulario con esperas explícitas ---
+            async def wait_and_fill(selector, value):
+                locator = page.locator(selector)
+                await locator.wait_for(state="visible", timeout=15000)
+                await locator.fill(value)
 
-            await page.locator(SELECTORS["boton_registrar"]).click()
+            async def wait_and_click(selector):
+                locator = page.locator(selector)
+                await locator.wait_for(state="visible", timeout=15000)
+                await locator.click()
 
-            payment_button = page.locator(SELECTORS["boton_agregar_pago"])
-            await payment_button.wait_for(state="visible", timeout=30000)
-            await payment_button.click()
+            await wait_and_fill(SELECTORS["rut"], personal_info['rut'])
+            await wait_and_fill(SELECTORS["nombre"], personal_info['nombre'])
+            await wait_and_fill(SELECTORS["apellido"], personal_info['apellido'])
+            await wait_and_fill(SELECTORS["email"], personal_info['email'])
+
+            concepto_locator = page.locator(SELECTORS["concepto_aporte"])
+            await concepto_locator.wait_for(state="visible", timeout=15000)
+            await concepto_locator.select_option(label="Donación")
+
+            await wait_and_fill(SELECTORS["monto"], DONATION_AMOUNT)
+            await wait_and_click(SELECTORS["boton_registrar"])
+            await wait_and_click(SELECTORS["boton_agregar_pago"])
 
             await page.wait_for_timeout(5000)
             payment_frame = page.frame_locator(SELECTORS["iframe_pago"])
@@ -62,16 +72,25 @@ async def perform_donation(personal_info: dict, card_info: dict) -> tuple[bool, 
             if not await payment_frame.locator().is_visible():
                  return False, "No se pudo encontrar el iframe del formulario de pago."
 
+            # --- Rellenar datos de tarjeta con esperas explícitas ---
             card_selectors = SELECTORS["tarjeta"]
-            await payment_frame.locator(card_selectors["numero"]).fill(card_info['card_number'])
+
+            async def frame_wait_and_fill(selector, value):
+                locator = payment_frame.locator(selector)
+                await locator.wait_for(state="visible", timeout=15000)
+                await locator.fill(value)
+
+            await frame_wait_and_fill(card_selectors["numero"], card_info['card_number'])
             expiry_date = f"{card_info['expiry_month']}/{card_info['expiry_year'][-2:]}"
-            await payment_frame.locator(card_selectors["expiracion"]).fill(expiry_date)
-            await payment_frame.locator(card_selectors["cvc"]).fill(card_info['cvc'])
-            await payment_frame.locator(card_selectors["nombre_titular"]).fill(f"{personal_info['nombre']} {personal_info['apellido']}")
+            await frame_wait_and_fill(card_selectors["expiracion"], expiry_date)
+            await frame_wait_and_fill(card_selectors["cvc"], card_info['cvc'])
+            await frame_wait_and_fill(card_selectors["nombre_titular"], f"{personal_info['nombre']} {personal_info['apellido']}")
 
             await page.screenshot(path=pre_payment_screenshot)
 
-            await payment_frame.locator(card_selectors["boton_pagar"]).click()
+            pagar_locator = payment_frame.locator(card_selectors["boton_pagar"])
+            await pagar_locator.wait_for(state="visible", timeout=15000)
+            await pagar_locator.click()
 
             print("Pago enviado. Esperando resultado...")
             await page.wait_for_url('**/*success*', timeout=120000)
@@ -82,9 +101,12 @@ async def perform_donation(personal_info: dict, card_info: dict) -> tuple[bool, 
             await browser.close()
             return True, "Donación completada exitosamente."
 
-        except TimeoutError:
-            print("Timeout esperando la página de éxito. Asumiendo fallo y buscando mensaje de error.")
-            error_message = f"La operación excedió el tiempo de espera (120s). Revise las capturas '{pre_payment_screenshot}' y 'post-payment-error.png' para diagnóstico."
+        except (TimeoutError, Error) as e:
+            # Captura errores de Playwright (incluyendo TimeoutError)
+            error_message = str(e)
+            print(f"Fallo de Playwright: {error_message}")
+
+            # Intentar obtener un mensaje de error más específico de la página
             try:
                 error_locator = payment_frame.locator('div[class*="error"], div[class*="message"], span[class*="error"]').first
                 await error_locator.wait_for(state="visible", timeout=5000)
@@ -92,14 +114,14 @@ async def perform_donation(personal_info: dict, card_info: dict) -> tuple[bool, 
                 if message_text:
                     error_message = message_text.strip()
             except Exception:
-                print("No se pudo capturar el mensaje de error específico.")
+                print("No se pudo capturar un mensaje de error de la pasarela de pago.")
 
             await page.screenshot(path="post-payment-error.png")
             await browser.close()
-            return False, error_message
+            return False, f"Error durante la automatización: {error_message}"
 
         except Exception as e:
-            error_text = f"Ocurrió un error inesperado: {e}"
+            error_text = f"Ocurrió un error inesperado no relacionado con Playwright: {e}"
             print(error_text)
             await page.screenshot(path="post-payment-error.png")
             await browser.close()

@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Importar la función de automatización
 from automation import perform_donation
@@ -204,6 +204,30 @@ async def listusers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message, parse_mode='Markdown')
 
 
+async def cmds_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra una lista de todos los comandos disponibles."""
+    user_id = update.effective_user.id
+    is_user_admin = is_admin(user_id)
+    is_user_allowed = user_id in config.get('allowed_user_ids', [])
+
+    # Construir el mensaje de ayuda
+    help_text = "📜 **Comandos Disponibles** 📜\n\n"
+    help_text += "**/id** - Muestra tu ID de usuario de Telegram.\n\n"
+
+    if is_user_allowed:
+        help_text += "**/donar** - Inicia el proceso de donación.\n_(Debes pasar los datos de la tarjeta en el mensaje)_\n\n"
+
+    if is_user_admin:
+        help_text += "--- **Comandos de Administrador** ---\n"
+        help_text += "**/adduser <ID>** - Autoriza a un nuevo usuario.\n"
+        help_text += "**/removeuser <ID>** - Revoca el acceso a un usuario.\n"
+        help_text += "**/listusers** - Muestra la lista de usuarios autorizados.\n"
+
+    help_text += "\n**.cmds** - Muestra este mensaje de ayuda."
+
+    await update.message.reply_text(help_text, parse_mode='Markdown')
+
+
 # --- Función Principal ---
 def main():
     """Inicia el bot de Telegram."""
@@ -222,6 +246,7 @@ def main():
     application.add_handler(CommandHandler("adduser", adduser_command))
     application.add_handler(CommandHandler("removeuser", removeuser_command))
     application.add_handler(CommandHandler("listusers", listusers_command))
+    application.add_handler(MessageHandler(filters.Regex(r'^\.cmds$'), cmds_command))
 
     logger.info("El bot se ha iniciado y está escuchando...")
     application.run_polling()
