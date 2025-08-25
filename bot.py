@@ -34,137 +34,110 @@ config = load_config()
 # --- Funciones de Comandos del Bot ---
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /start y explica cómo usar /donar."""
+    """Maneja el comando .start y da la bienvenida."""
     user_id = update.effective_user.id
     if config and user_id in config.get('allowed_user_ids', []):
-        await update.message.reply_text("Bot listo. Usa /donar seguido de los datos de la tarjeta para iniciar.")
+        await update.message.reply_text("Bot de donación v2.5 listo. Escribe .cmds para ver los comandos.")
     else:
         await update.message.reply_text("No tienes permiso para usar este bot.")
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /donar, procesando los datos de la tarjeta y ejecutando la automatización."""
+    """Maneja el comando .donar, que inicia el proceso de donación con las tarjetas guardadas."""
     user_id = update.effective_user.id
     if not config or user_id not in config.get('allowed_user_ids', []):
         await update.message.reply_text("No tienes permiso para usar este bot.")
         return
 
-    # --- Re-introducir el procesamiento de datos de tarjeta ---
-    message_text = update.message.text
-    command_text = "/donar"
-    cards_text = message_text[len(command_text):].strip()
-
-    if not cards_text:
-        await update.message.reply_text("Uso: /donar <numero_tarjeta|mes|año|cvc>")
+    if not config.get('credit_cards'):
+        await update.message.reply_text("No hay tarjetas de crédito configuradas en `config.json`.")
         return
 
-    # Asumimos una sola tarjeta por comando para simplificar
-    parts = [p.strip() for p in cards_text.split('|')]
-    if len(parts) != 4:
-        await update.message.reply_text("Formato incorrecto. Usa: numero_tarjeta|mes|año|cvc")
-        return
+    await update.message.reply_text(f"Iniciando proceso de donación con {len(config['credit_cards'])} tarjeta(s)...")
 
-    card_info = {
-        "card_number": parts[0], "expiry_month": parts[1],
-        "expiry_year": parts[2], "cvc": parts[3]
-    }
+    # Llamar a la función de automatización con toda la configuración
+    success, message, screenshot_paths = await perform_donation(config)
 
-    personal_info = config.get('personal_info')
-    if not personal_info:
-        await update.message.reply_text("Error: La sección `personal_info` no está configurada en `config.json`.")
-        return
-
-    # --- Lógica de la Barra de Progreso ---
-    progress_bar_frames = ["[■■□□□□]", "[■■■□□□]", "[■■■■□□]", "[■■■■■□]", "[■■■■■■]"]
-    progress_message = await update.message.reply_text(f"Iniciando... {progress_bar_frames[0]}")
-
-    automation_task = asyncio.create_task(perform_donation(personal_info, card_info))
-
-    frame_index = 0
-    while not automation_task.done():
-        frame_index = (frame_index + 1) % len(progress_bar_frames)
-        try:
-            await progress_message.edit_text(f"Procesando... {progress_bar_frames[frame_index]}")
-        except BadRequest as e:
-            if "Message is not modified" not in str(e):
-                logger.warning(f"Error al editar mensaje (ignorado): {e}")
-        await asyncio.sleep(1.5)
-
-    # --- Procesar el resultado ---
-    try:
-        success, message = await automation_task
-        final_text = f"✅ ¡Éxito!" if success else f"❌ Falló."
-        final_text += f"\nMotivo: {message}"
-        await progress_message.edit_text(final_text)
-
-        if not success and os.path.exists("post-payment-error.png"):
-            await update.message.reply_photo(photo=open("post-payment-error.png", "rb"))
-
-    except Exception as e:
-        logger.error(f"Error crítico al procesar el pago: {e}")
-        await progress_message.edit_text(f"⚠️ Ocurrió un error inesperado.")
-
+    if success:
+        await update.message.reply_text(f"✅ ¡Éxito! {message}")
+    else:
+        await update.message.reply_text(f"❌ Fallo. {message}")
+        if screenshot_paths:
+            await update.message.reply_text("Se generaron los siguientes informes de error:")
+            for path in screenshot_paths:
+                if os.path.exists(path):
+                    await update.message.reply_photo(photo=open(path, "rb"))
+                    os.remove(path) # Limpiar después de enviar
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Devuelve el ID de usuario de Telegram."""
     user_id = update.effective_user.id
-    await update.message.reply_text(f"`{user_id}`", parse_mode='Markdown')
+    await update.message.reply_text(f"Tu ID de Telegram es: `{user_id}`", parse_mode='Markdown')
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Responde con 'pong'."""
     await update.message.reply_text("pong")
 
-# --- Funciones de Administración (sin cambios) ---
+# --- Funciones de Administración ---
 def is_admin(user_id: int) -> bool:
+    """Verifica si un ID de usuario corresponde al administrador."""
     if not config or not config.get('allowed_user_ids'): return False
     return user_id == config['allowed_user_ids'][0]
 
 def save_config(new_config: dict):
+    """Guarda la configuración actualizada en config.json."""
     global config
     with open('config.json', 'w') as f: json.dump(new_config, f, indent=2)
     config = new_config
+    logger.info("La configuración ha sido guardada.")
 
 async def adduser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+    """Añade un nuevo usuario a la lista de permitidos (solo admin)."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("No tienes permisos de administrador.")
+        return
+
     try:
-        new_user_id = int(context.args[0])
+        # Extraer el ID del mensaje, que viene después del comando
+        new_user_id = int(update.message.text.split()[1])
         if new_user_id not in config['allowed_user_ids']:
             config['allowed_user_ids'].append(new_user_id)
             save_config(config)
-            await update.message.reply_text(f"Usuario {new_user_id} añadido.")
+            await update.message.reply_text(f"Usuario `{new_user_id}` añadido correctamente.", parse_mode='Markdown')
         else:
-            await update.message.reply_text("El usuario ya está en la lista.")
+            await update.message.reply_text("Ese usuario ya estaba autorizado.")
     except (IndexError, ValueError):
-        await update.message.reply_text("Uso: /adduser <ID>")
-
-async def removeuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
-    try:
-        user_to_remove = int(context.args[0])
-        if user_to_remove == config['allowed_user_ids'][0]:
-            await update.message.reply_text("No puedes eliminar al administrador.")
-            return
-        if user_to_remove in config['allowed_user_ids']:
-            config['allowed_user_ids'].remove(user_to_remove)
-            save_config(config)
-            await update.message.reply_text(f"Usuario {user_to_remove} eliminado.")
-        else:
-            await update.message.reply_text("El usuario no se encuentra en la lista.")
-    except (IndexError, ValueError):
-        await update.message.reply_text("Uso: /removeuser <ID>")
+        await update.message.reply_text("Uso: `.adduser <ID_de_usuario>`")
 
 async def listusers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+    """Lista todos los usuarios autorizados (solo admin)."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("No tienes permisos de administrador.")
+        return
+
     user_list = "\n".join([f"- `{uid}`" for uid in config.get('allowed_user_ids', [])])
     admin_id = config.get('allowed_user_ids', [None])[0]
-    message = f"**Usuarios Autorizados:**\n{user_list}\n\nAdmin: `{admin_id}`"
+    message = f"**Usuarios Autorizados:**\n{user_list}\n\nEl administrador es: `{admin_id}`"
     await update.message.reply_text(message, parse_mode='Markdown')
 
 async def cmds_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra la lista de comandos disponibles."""
     user_id = update.effective_user.id
     is_user_admin = is_admin(user_id)
     is_user_allowed = user_id in config.get('allowed_user_ids', [])
-    help_text = "📜 **Comandos** 📜\n\n/id\n/ping\n"
-    if is_user_allowed: help_text += "/donar <tarjeta|mes|año|cvv>\n"
-    if is_user_admin: help_text += "\n--- Admin ---\n/adduser <ID>\n/removeuser <ID>\n/listusers\n"
-    help_text += "\n.cmds - Muestra esta ayuda."
+
+    help_text = "📜 **Comandos Disponibles** 📜\n\n"
+    help_text += "`.ping` - Comprueba si el bot está vivo.\n"
+    help_text += "`.id` - Muestra tu ID de Telegram.\n"
+
+    if is_user_allowed:
+        help_text += "`.donar` - Inicia el proceso de donación con las tarjetas guardadas.\n"
+
+    if is_user_admin:
+        help_text += "\n--- Comandos de Administrador ---\n"
+        help_text += "`.adduser <ID>` - Autoriza a un nuevo usuario.\n"
+        help_text += "`.listusers` - Muestra los usuarios autorizados.\n"
+
+    help_text += "\n`.cmds` - Muestra esta ayuda."
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
 # --- Función Principal ---
@@ -172,23 +145,24 @@ def main():
     if not config: return
     bot_token = config.get('telegram_bot_token')
     if not bot_token or "AQUI" in bot_token:
-        logger.error("Token no configurado en 'config.json'.")
+        logger.error("Token no configurado en 'config.json'. Revisa el archivo.")
         return
 
     application = Application.builder().token(bot_token).build()
+
+    # Registrar comandos usando MessageHandler con Regex para el prefijo '.'
     handlers = [
-        CommandHandler("start", start_command),
-        CommandHandler("donar", donate_command),
-        CommandHandler("id", id_command),
-        CommandHandler("ping", ping_command),
-        CommandHandler("adduser", adduser_command),
-        CommandHandler("removeuser", removeuser_command),
-        CommandHandler("listusers", listusers_command),
+        MessageHandler(filters.Regex(r'^\.start$'), start_command),
+        MessageHandler(filters.Regex(r'^\.donar$'), donate_command),
+        MessageHandler(filters.Regex(r'^\.id$'), id_command),
+        MessageHandler(filters.Regex(r'^\.ping$'), ping_command),
+        MessageHandler(filters.Regex(r'^\.adduser(\s+\d+)?$'), adduser_command),
+        MessageHandler(filters.Regex(r'^\.listusers$'), listusers_command),
         MessageHandler(filters.Regex(r'^\.cmds$'), cmds_command)
     ]
     application.add_handlers(handlers)
 
-    logger.info("El bot se ha iniciado...")
+    logger.info("Bot iniciado. Escuchando comandos con prefijo '.'")
     application.run_polling()
 
 if __name__ == '__main__':

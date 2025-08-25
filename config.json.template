@@ -3,11 +3,27 @@
   "allowed_user_ids": [
     123456789
   ],
+  "donation_url": "https://micrositios.getnet.cl/techochile",
+  "donation_amount": "5000",
   "personal_info": {
     "rut": "11.111.111-1",
     "nombre": "TuNombre",
     "apellido": "TuApellido",
     "email": "tu.email@ejemplo.com"
   },
+  "credit_cards": [
+    {
+      "card_number": "1111222233334444",
+      "expiry_month": "12",
+      "expiry_year": "25",
+      "cvc": "123"
+    },
+    {
+      "card_number": "5555666677778888",
+      "expiry_month": "11",
+      "expiry_year": "26",
+      "cvc": "456"
+    }
+  ],
   "security_warning": "ADVERTENCIA: El primer ID en la lista 'allowed_user_ids' es el administrador del bot."
 }
