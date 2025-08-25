@@ -67,9 +67,9 @@ async def perform_donation(personal_info: dict, card_info: dict) -> tuple[bool, 
             # ... y así para los demás campos del formulario principal.
 
             # --- Lógica de llenado de tarjeta ---
+            iframe_locator = page.locator(SELECTORS["iframe_pago"])
+            await iframe_locator.wait_for(state="visible", timeout=15000)
             payment_frame = page.frame_locator(SELECTORS["iframe_pago"])
-            if not await payment_frame.locator().is_visible():
-                 return False, "No se pudo encontrar el iframe del formulario de pago."
 
             card_selectors = SELECTORS["tarjeta"]
 
