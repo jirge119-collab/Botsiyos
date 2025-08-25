@@ -57,4 +57,26 @@ Solo el administrador puede usar estos comandos.
 - `/listusers`
 
 ## Solución de Problemas
-Si recibes un error de "tiempo de espera excedido", el bot te enviará una captura de pantalla para ayudarte a ver qué ocurrió en la página de pago. Revisa si los datos se rellenaron correctamente o si apareció un mensaje de error o captcha.
+
+### Error: "el bot no rellena los campos" o "no se encuentra el elemento"
+Este es el error más común y sucede cuando la estructura de la página web cambia. Para solucionarlo, debes actualizar los "selectores" en el archivo `automation.py`.
+
+**Cómo actualizar los selectores:**
+
+1.  **Abre la página de donación** en tu navegador (Chrome, Firefox, etc.).
+2.  **Haz clic derecho** en el campo que el bot no está rellenando (por ejemplo, el campo "RUT").
+3.  En el menú que aparece, selecciona **"Inspeccionar"** (o "Inspect"). Se abrirá un panel con el código HTML de la página.
+4.  Verás una línea de código resaltada. **Haz clic derecho** sobre esa línea.
+5.  En el nuevo menú, ve a **Copiar > Copiar selector** (o `Copy > Copy selector`). Esto copiará al portapapeles una cadena de texto como `input#rut` o `#main-content > div > input.rut-field`.
+6.  **Abre el archivo `automation.py`** en un editor de texto.
+7.  **Busca el diccionario `SELECTORS`** al principio del archivo.
+8.  **Pega el selector que copiaste** como el nuevo valor para la clave correspondiente. Por ejemplo, si copiaste el selector para el campo RUT, la línea debería quedar así:
+    ```python
+    "rut": "input#rut", # <--- Pega tu selector aquí
+    ```
+9.  **Guarda el archivo** y vuelve a ejecutar el bot.
+
+Repite este proceso para cualquier otro campo que esté fallando.
+
+### Error: "La operación excedió el tiempo de espera"
+Si recibes este error, el bot creará dos capturas de pantalla (`pre-payment-error.png` y `post-payment-error.png`) en su carpeta para ayudarte a diagnosticar qué ocurrió. Revisa si los datos se rellenaron correctamente o si apareció un mensaje de error o captcha.
