@@ -51,83 +51,30 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No tienes permiso para usar este bot.")
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /donar, que procesa las tarjetas y ejecuta la donación."""
+    """Maneja el comando /donar, que ahora activa el pago recurrente."""
     user_id = update.effective_user.id
     if not config or user_id not in config.get('allowed_user_ids', []):
         await update.message.reply_text("No tienes permiso para usar este bot.")
         return
 
-    # Extraer el texto que viene después del comando /donar
-    message_text = update.message.text
-    command_text = "/donar"
-    cards_text = message_text[len(command_text):].strip()
+    await update.message.reply_text("Iniciando proceso de pago recurrente... 🚀")
 
-    if not cards_text:
-        await update.message.reply_text(
-            "Por favor, proporciona los datos de las tarjetas después del comando /donar.\n\n"
-            "Ejemplo:\n"
-            "```\n"
-            "/donar\n"
-            "1111222233334444|12|2028|123\n"
-            "```"
-        )
-        return
-
-    # Procesar cada línea como una tarjeta
-    lines = cards_text.split('\n')
-    cards_to_process = []
-    for line in lines:
-        if not line.strip():
-            continue
-        parts = [p.strip() for p in line.split('|')]
-        if len(parts) == 4:
-            card_info = {
-                "card_number": parts[0],
-                "expiry_month": parts[1],
-                "expiry_year": parts[2],
-                "cvc": parts[3]
-            }
-            cards_to_process.append(card_info)
+    try:
+        success, message = await perform_donation()
+        if success:
+            await update.message.reply_text(f"✅ ¡Pago exitoso!\nMotivo: {message}")
         else:
-            await update.message.reply_text(f"⚠️ Línea ignorada por formato incorrecto: `{line}`")
+            await update.message.reply_text(f"❌ Falló el pago.\nMotivo: {message}")
+            # Enviar captura de pantalla si existe
+            if os.path.exists("post-payment-error.png"):
+                await update.message.reply_photo(
+                    photo=open("post-payment-error.png", "rb"),
+                    caption="Captura de pantalla del error."
+                )
 
-    if not cards_to_process:
-        await update.message.reply_text("No se encontraron tarjetas válidas en tu mensaje. Asegúrate de usar el formato: `numero|mes|año|cvc`")
-        return
-
-    personal_info = config.get('personal_info')
-    if not personal_info:
-        await update.message.reply_text("Error: La sección `personal_info` no está configurada en `config.json`.")
-        return
-
-    await update.message.reply_text(f"Iniciando proceso de donación con {len(cards_to_process)} tarjeta(s)... 🚀")
-
-    donation_successful = False
-    for i, card in enumerate(cards_to_process):
-        card_nickname = f"Tarjeta #{i + 1} (terminada en {card['card_number'][-4:]})"
-        await update.message.reply_text(f"💳 Intentando con {card_nickname}...")
-
-        try:
-            success, message = await perform_donation(personal_info, card)
-            if success:
-                await update.message.reply_text(f"✅ ¡Donación exitosa con {card_nickname}!\nMotivo: {message}")
-                donation_successful = True
-                break
-            else:
-                await update.message.reply_text(f"❌ Falló la donación con {card_nickname}.\nMotivo: {message}")
-                # Enviar captura de pantalla si existe
-                if os.path.exists("post-payment-error.png"):
-                    await update.message.reply_photo(
-                        photo=open("post-payment-error.png", "rb"),
-                        caption="Captura de pantalla del error."
-                    )
-
-        except Exception as e:
-            logger.error(f"Error crítico al procesar {card_nickname}: {e}")
-            await update.message.reply_text(f"⚠️ Ocurrió un error inesperado con {card_nickname}. Revisa los logs del bot.")
-
-    if not donation_successful:
-        await update.message.reply_text("🛑 Proceso finalizado. Ninguna de las tarjetas pudo completar la donación.")
+    except Exception as e:
+        logger.error(f"Error crítico al procesar el pago: {e}")
+        await update.message.reply_text(f"⚠️ Ocurrió un error inesperado. Revisa los logs del bot.")
 
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
