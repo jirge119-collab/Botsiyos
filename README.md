@@ -31,6 +31,7 @@ playwright install
 Escribe `.cmds` para ver esta lista.
 
 - `/id`: Te responde con tu ID de usuario.
+- `/ping`: Responde "pong" para verificar que el bot está activo.
 - `/donar`: **Inicia el proceso de pago recurrente.** Ya no necesitas pasar datos de tarjeta.
 - `/adduser <ID>`: (Admin) Autoriza a un nuevo usuario.
 - `/removeuser <ID>`: (Admin) Revoca el acceso a un usuario.

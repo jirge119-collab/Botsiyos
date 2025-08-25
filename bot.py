@@ -83,6 +83,11 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Tu ID de usuario de Telegram es: `{user_id}`")
 
 
+async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Responde con 'pong' para verificar que el bot está activo."""
+    await update.message.reply_text("pong")
+
+
 # --- Funciones de Administración ---
 
 def is_admin(user_id: int) -> bool:
@@ -190,6 +195,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("donar", donate_command))
     application.add_handler(CommandHandler("id", id_command))
+    application.add_handler(CommandHandler("ping", ping_command))
     application.add_handler(CommandHandler("adduser", adduser_command))
     application.add_handler(CommandHandler("removeuser", removeuser_command))
     application.add_handler(CommandHandler("listusers", listusers_command))
