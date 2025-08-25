@@ -6,8 +6,8 @@ from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Importar la función de automatización
-from automation import perform_donation
+# Importar la función de automatización y los selectores
+from automation import perform_donation, SELECTORS
 
 # Configurar logging
 logging.basicConfig(
@@ -53,12 +53,12 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     progress_bar_frames = [
-        "[□□□□□□□□□□]",
-        "[■■□□□□□□□□]",
-        "[■■■■□□□□□□]",
-        "[■■■■■■□□□□]",
-        "[■■■■■■■■□□]",
-        "[■■■■■■■■■■]"
+        "[□□□□□□□□□□□□□□□□□□□□]",
+        "[■■■■□□□□□□□□□□□□□□□□]",
+        "[■■■■■■■■□□□□□□□□□□□□]",
+        "[■■■■■■■■■■■■□□□□□□□□]",
+        "[■■■■■■■■■■■■■■■■□□□□]",
+        "[■■■■■■■■■■■■■■■■■■■■]"
     ]
     progress_message = await update.message.reply_text(f"Iniciando... {progress_bar_frames[0]}")
 
@@ -180,6 +180,19 @@ def main():
         MessageHandler(filters.Regex(r'^\.cmds$'), cmds_command)
     ]
     application.add_handlers(handlers)
+
+    # --- Mostrar configuración en consola ---
+    logger.info("--- CONFIGURACIÓN CARGADA ---")
+    logger.info(f"URL de Donación: {config.get('donation_url', 'No configurada')}")
+    logger.info("Selectores CSS cargados:")
+    for key, value in SELECTORS.items():
+        if isinstance(value, dict):
+            logger.info(f"  {key}:")
+            for sub_key, sub_value in value.items():
+                logger.info(f"    - {sub_key}: {sub_value}")
+        else:
+            logger.info(f"  - {key}: {value}")
+    logger.info("-----------------------------")
 
     logger.info("Bot iniciado. Escuchando comandos con prefijo '.'")
     application.run_polling()
