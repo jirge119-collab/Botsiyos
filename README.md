@@ -65,3 +65,16 @@ Solo el **primer usuario** de la lista `allowed_user_ids` puede usar estos coman
   - Ejemplo: `/removeuser 987654321`
 - `/listusers`
   - Muestra una lista de todos los usuarios actualmente autorizados y quién es el administrador.
+
+## Solución de Problemas
+
+### Error: "La operación excedió el tiempo de espera"
+
+Si recibes un mensaje de error que dice `La operación excedió el tiempo de espera (120s)`, significa que el bot no recibió una confirmación de la página de pago a tiempo.
+
+Para ayudarte a diagnosticar el problema, el bot creará automáticamente dos archivos de imagen en su carpeta:
+
+1.  `pre-payment-error.png`: Una captura de pantalla de cómo se veía la página justo **antes** de que el bot hiciera clic en el botón final de pago. Úsala para verificar que todos los datos de la tarjeta se rellenaron correctamente.
+2.  `post-payment-error.png`: Una captura de pantalla de la página en el momento en que se agotó el tiempo de espera. Úsala para ver si apareció algún mensaje de error extraño, un captcha, o si la página simplemente se quedó cargando.
+
+Revisar estas imágenes es el primer paso para entender por qué puede estar fallando el proceso.

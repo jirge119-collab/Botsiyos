@@ -1,5 +1,6 @@
 import asyncio
 import random
+import os
 from faker import Faker
 from playwright.async_api import async_playwright, TimeoutError
 
@@ -26,6 +27,8 @@ async def perform_donation(card_info: dict) -> tuple[bool, str]:
     last_name = fake.last_name()
     email = fake.email()
     rut = generate_rut()
+
+    pre_payment_screenshot = "pre-payment-error.png"
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -61,39 +64,45 @@ async def perform_donation(card_info: dict) -> tuple[bool, str]:
             await payment_frame.locator('input[name="card-cvc"]').fill(card_info['cvc'])
             await payment_frame.locator('input[name="card-holder-name"]').fill(f"{first_name} {last_name}")
 
+            # Tomar captura de pantalla justo antes de pagar para diagnóstico
+            await page.screenshot(path=pre_payment_screenshot)
+
             await payment_frame.locator('button[type="submit"]').click()
 
             print("Pago enviado. Esperando resultado...")
-            await page.wait_for_url('**/*success*', timeout=90000)
+            await page.wait_for_url('**/*success*', timeout=120000) # Timeout aumentado
+
+            # Si la donación es exitosa, limpiar la captura de pre-pago
+            if os.path.exists(pre_payment_screenshot):
+                os.remove(pre_payment_screenshot)
 
             await browser.close()
             return True, "Donación completada exitosamente."
 
         except TimeoutError:
             print("Timeout esperando la página de éxito. Asumiendo fallo y buscando mensaje de error.")
-            error_message = "La operación excedió el tiempo de espera. No se encontró un mensaje de error específico."
+            error_message = f"La operación excedió el tiempo de espera (120s). Revise las capturas '{pre_payment_screenshot}' y 'post-payment-error.png' para diagnóstico."
+
+            # Renombrar la captura de pre-pago para que sea claro que es parte de un error
+            # La captura post-pago se toma a continuación
+
             try:
-                # Intentar encontrar un mensaje de error visible dentro del iframe de pago
-                # NOTA: Este selector es una suposición y podría necesitar ajustes.
+                # Intentar encontrar un mensaje de error visible
                 error_locator = payment_frame.locator('div[class*="error"], div[class*="message"], span[class*="error"]').first
                 await error_locator.wait_for(state="visible", timeout=5000)
                 message_text = await error_locator.text_content()
                 if message_text:
                     error_message = message_text.strip()
-                    print(f"Mensaje de error capturado: {error_message}")
+            except Exception:
+                print("No se pudo capturar el mensaje de error específico.")
 
-            except Exception as e:
-                print(f"No se pudo capturar el mensaje de error específico: {e}")
-
-            await page.screenshot(path="error_screenshot.png")
-            print("Se ha guardado una captura de pantalla en: error_screenshot.png")
+            await page.screenshot(path="post-payment-error.png")
             await browser.close()
             return False, error_message
 
         except Exception as e:
             error_text = f"Ocurrió un error inesperado: {e}"
             print(error_text)
-            await page.screenshot(path="error_screenshot.png")
-            print(f"Se ha guardado una captura de pantalla en: error_screenshot.png")
+            await page.screenshot(path="post-payment-error.png")
             await browser.close()
             return False, error_text
