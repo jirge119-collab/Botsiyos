@@ -52,7 +52,14 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No hay tarjetas de crédito configuradas en `config.json`.")
         return
 
-    progress_bar_frames = ["[□□□□□]", "[■□□□□]", "[■■□□□]", "[■■■□□]", "[■■■■□]", "[■■■■■]"]
+    progress_bar_frames = [
+        "[□□□□□□□□□□]",
+        "[■■□□□□□□□□]",
+        "[■■■■□□□□□□]",
+        "[■■■■■■□□□□]",
+        "[■■■■■■■■□□]",
+        "[■■■■■■■■■■]"
+    ]
     progress_message = await update.message.reply_text(f"Iniciando... {progress_bar_frames[0]}")
 
     automation_task = asyncio.create_task(perform_donation(config))
