@@ -1,0 +1,27 @@
+{
+  "telegram_bot_token": "AQUI_VA_TU_TOKEN_DE_TELEGRAM",
+  "allowed_user_id": 123456789,
+  "personal_info": {
+    "first_name": "TuNombre",
+    "last_name": "TuApellido",
+    "email": "tu.email@ejemplo.com",
+    "phone": "912345678"
+  },
+  "cards": [
+    {
+      "card_holder": "Nombre Completo Como Aparece en la Tarjeta",
+      "card_number": "1111222233334444",
+      "expiry_month": "12",
+      "expiry_year": "2028",
+      "cvc": "123"
+    },
+    {
+      "card_holder": "Nombre Completo Como Aparece en la Tarjeta",
+      "card_number": "5555666677778888",
+      "expiry_month": "06",
+      "expiry_year": "2027",
+      "cvc": "456"
+    }
+  ],
+  "security_warning": "ADVERTENCIA: Este archivo contiene informacion sensible. Guardalo en un lugar seguro y no lo compartas. Usalo bajo tu propio riesgo."
+}
