@@ -1,20 +1,22 @@
-# Bot de Donación Automatizada v2
+# Bot de Donación Automatizada v2.1 (con Gestión de Usuarios)
 
-Esta es la segunda versión del bot de Telegram, diseñada para automatizar donaciones con un enfoque en la seguridad y la flexibilidad. A diferencia de la primera versión, este bot no almacena información personal ni de tarjetas en archivos. En su lugar, genera datos personales aleatorios para cada donación y recibe la información de las tarjetas directamente a través de un comando de Telegram.
+Esta versión del bot de Telegram automatiza donaciones y añade un completo sistema de gestión de usuarios para permitir que varias personas usen el bot de forma segura.
 
-## Cambios Principales en v2
-- **Datos Aleatorios:** El bot genera un RUT, nombre y email nuevos para cada intento de donación.
-- **Entrada de Tarjetas por Comando:** Las tarjetas de crédito/débito se proporcionan directamente en el comando `/donar`, en lugar de leerlas de un archivo. Esto es más seguro ya que no se almacenan en disco.
-- **Flujo de Automatización Actualizado:** El script ahora maneja un formulario de varios pasos (Registrar, Agregar medio de pago).
+## Características Principales
+- **Datos Aleatorios:** Genera un RUT, nombre y email nuevos para cada donación.
+- **Entrada de Tarjetas por Comando:** Las tarjetas se proporcionan de forma segura en el comando `/donar`, no se almacenan en disco.
+- **Gestión de Usuarios:** Un usuario administrador (el primero en la lista de configuración) puede añadir o eliminar a otros usuarios autorizados.
+- **Comandos de Administración:** `/adduser`, `/removeuser`, `/listusers`.
+- **Comando de Usuario:** `/id` para que cualquiera pueda obtener su ID de Telegram.
 
 ## Instrucciones de Configuración
 
 ### Paso 1: Descargar el Código
-Descarga o clona el código y descomprímelo en una carpeta.
+Descarga o clona el código del proyecto.
 
 ### Paso 2: Instalar Dependencias
-1.  Abre una terminal o línea de comandos en la carpeta del proyecto.
-2.  Instala las librerías de Python necesarias:
+1.  Abre una terminal en la carpeta del proyecto.
+2.  Instala las librerías necesarias:
     ```bash
     pip install -r requirements.txt
     ```
@@ -24,40 +26,42 @@ Descarga o clona el código y descomprímelo en una carpeta.
     ```
 
 ### Paso 3: Configurar el Bot
-1.  **Obtén un token de bot de Telegram** hablando con `@BotFather` (si no lo tienes ya).
-2.  **Obtén tu ID de usuario de Telegram** hablando con `@userinfobot`.
-3.  Haz una copia del archivo `config.json.template` y renómbrala a `config.json`.
-4.  Abre `config.json` y rellena tu `telegram_bot_token` y tu `allowed_user_id`. Esto asegura que solo tú puedas usar el bot.
+1.  Crea un bot en Telegram hablando con `@BotFather` para obtener tu `token`.
+2.  Copia `config.json.template` y renómbralo a `config.json`.
+3.  Abre `config.json` y edítalo:
+    *   `telegram_bot_token`: Pega aquí el token de tu bot.
+    *   `allowed_user_ids`: Esta es la lista de usuarios autorizados.
+        *   **Importante:** El **primer ID** de la lista es el **administrador** del bot. Pon tu propio ID de Telegram aquí. Puedes añadir otros IDs si lo deseas. Para encontrar tu ID, puedes iniciar el bot y enviarle el comando `/id`.
 
 ### Paso 4: Ejecutar el Bot
-1.  En tu terminal, dentro de la carpeta del proyecto, ejecuta:
-    ```bash
-    python bot.py
-    ```
-2.  Si todo está correcto, verás un mensaje indicando que el bot se ha iniciado.
+En tu terminal, ejecuta: `python bot.py`
 
 ## Cómo Usar el Bot
 
-1.  Abre una conversación con tu bot en Telegram.
-2.  Envía `/start` para ver el mensaje de bienvenida y las instrucciones.
-3.  Para realizar una donación, envía el comando `/donar` seguido de los datos de tus tarjetas en las líneas siguientes.
+### Comandos Públicos
+Cualquier usuario de Telegram puede usar este comando.
+- `/id`
+  - El bot te responderá con tu ID de usuario de Telegram. Es útil si necesitas dárselo al administrador para que te añada.
 
-### Formato del Comando `/donar`
-Cada tarjeta debe estar en una nueva línea y sus datos deben estar separados por una barra vertical (`|`), sin espacios, en el siguiente orden:
-`numero_de_tarjeta|mes_de_expiracion|año_de_expiracion|cvc`
+### Comandos de Usuario Autorizado
+Solo los usuarios en la lista `allowed_user_ids` pueden usar este comando.
+- `/donar`
+  - Inicia el proceso de donación. Debes proporcionar las tarjetas en las líneas siguientes, usando `|` como separador.
+  - **Formato:** `numero_tarjeta|mes_exp|año_exp|cvc`
+  - **Ejemplo:**
+    ```
+    /donar
+    1111222233334444|12|2028|123
+    5555666677778888|06|2027|456
+    ```
 
-**Ejemplo para una tarjeta:**
-```
-/donar
-1111222233334444|12|2028|123
-```
-
-**Ejemplo para múltiples tarjetas:**
-```
-/donar
-1111222233334444|12|2028|123
-5555666677778888|06|2027|456
-9876543210987654|01|2026|789
-```
-
-El bot procesará las tarjetas en el orden en que las enviaste. Si una falla, te lo notificará y continuará con la siguiente. Si una tiene éxito, el proceso se detendrá.
+### Comandos de Administrador
+Solo el **primer usuario** de la lista `allowed_user_ids` puede usar estos comandos.
+- `/adduser <ID_del_usuario>`
+  - Añade un nuevo usuario a la lista de autorizados.
+  - Ejemplo: `/adduser 987654321`
+- `/removeuser <ID_del_usuario>`
+  - Elimina a un usuario de la lista. No puedes eliminar al administrador.
+  - Ejemplo: `/removeuser 987654321`
+- `/listusers`
+  - Muestra una lista de todos los usuarios actualmente autorizados y quién es el administrador.

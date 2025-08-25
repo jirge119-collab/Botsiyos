@@ -33,7 +33,7 @@ config = load_config()
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /start y explica cómo usar /donar."""
     user_id = update.effective_user.id
-    if config and user_id == config.get('allowed_user_id'):
+    if config and user_id in config.get('allowed_user_ids', []):
         await update.message.reply_text(
             "¡Hola! Soy tu bot de donaciones v2. 👋\n\n"
             "Para iniciar una donación, usa el comando /donar seguido de los datos de tus tarjetas, una por línea.\n\n"
@@ -52,7 +52,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /donar, que procesa las tarjetas y ejecuta la donación."""
     user_id = update.effective_user.id
-    if not config or user_id != config.get('allowed_user_id'):
+    if not config or user_id not in config.get('allowed_user_ids', []):
         await update.message.reply_text("No tienes permiso para usar este bot.")
         return
 
@@ -117,6 +117,81 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not donation_successful:
         await update.message.reply_text("🛑 Proceso finalizado. Ninguna de las tarjetas pudo completar la donación.")
 
+
+async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Un comando público para que cualquier usuario pueda obtener su ID de Telegram."""
+    user_id = update.effective_user.id
+    await update.message.reply_text(f"Tu ID de usuario de Telegram es: `{user_id}`")
+
+
+# --- Funciones de Administración ---
+
+def is_admin(user_id: int) -> bool:
+    """Verifica si el user_id es el del administrador (el primero en la lista)."""
+    if not config:
+        return False
+    admin_id = config.get('allowed_user_ids', [])[0]
+    return user_id == admin_id
+
+def save_config(new_config: dict):
+    """Guarda la configuración actualizada en el archivo config.json."""
+    global config
+    with open('config.json', 'w') as f:
+        json.dump(new_config, f, indent=2)
+    config = new_config # Actualizar la configuración en memoria
+
+async def adduser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando de admin para añadir un nuevo usuario autorizado."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Este comando solo puede ser usado por el administrador.")
+        return
+
+    try:
+        new_user_id = int(context.args[0])
+        if new_user_id not in config['allowed_user_ids']:
+            new_config = config.copy()
+            new_config['allowed_user_ids'].append(new_user_id)
+            save_config(new_config)
+            await update.message.reply_text(f"Usuario {new_user_id} añadido exitosamente.")
+        else:
+            await update.message.reply_text(f"El usuario {new_user_id} ya está en la lista.")
+    except (IndexError, ValueError):
+        await update.message.reply_text("Uso: /adduser <ID_del_usuario>")
+
+async def removeuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando de admin para quitar a un usuario autorizado."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Este comando solo puede ser usado por el administrador.")
+        return
+
+    try:
+        user_to_remove = int(context.args[0])
+        if user_to_remove == config['allowed_user_ids'][0]:
+            await update.message.reply_text("No puedes eliminar al administrador.")
+            return
+
+        if user_to_remove in config['allowed_user_ids']:
+            new_config = config.copy()
+            new_config['allowed_user_ids'].remove(user_to_remove)
+            save_config(new_config)
+            await update.message.reply_text(f"Usuario {user_to_remove} eliminado exitosamente.")
+        else:
+            await update.message.reply_text(f"El usuario {user_to_remove} no se encuentra en la lista.")
+    except (IndexError, ValueError):
+        await update.message.reply_text("Uso: /removeuser <ID_del_usuario>")
+
+async def listusers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando de admin para listar todos los usuarios autorizados."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("Este comando solo puede ser usado por el administrador.")
+        return
+
+    user_list = "\n".join([f"- `{uid}`" for uid in config.get('allowed_user_ids', [])])
+    admin_id = config.get('allowed_user_ids', [None])[0]
+    message = f"**Lista de Usuarios Autorizados:**\n{user_list}\n\nEl administrador es: `{admin_id}`"
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+
 # --- Función Principal ---
 def main():
     """Inicia el bot de Telegram."""
@@ -131,6 +206,10 @@ def main():
     application = Application.builder().token(bot_token).build()
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("donar", donate_command))
+    application.add_handler(CommandHandler("id", id_command))
+    application.add_handler(CommandHandler("adduser", adduser_command))
+    application.add_handler(CommandHandler("removeuser", removeuser_command))
+    application.add_handler(CommandHandler("listusers", listusers_command))
 
     logger.info("El bot se ha iniciado y está escuchando...")
     application.run_polling()
