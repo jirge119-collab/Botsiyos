@@ -33,9 +33,20 @@ Termux es una aplicación para Android que te da un entorno de línea de comando
     pkg install python git clang make
     ```
 
-4.  **Instala las librerías de Python**: Estas son las dependencias que el script `bot.py` necesita para funcionar.
+4.  **Descarga los archivos del bot**: Necesitarás los archivos `bot.py` y `requirements.txt`. Si estás en una computadora, clona el repositorio o descarga los archivos. Luego, transfiérelos a tu dispositivo Android. Una forma fácil es usar `git`:
     ```bash
-    pip install python-telegram-bot selenium
+    # Primero, instala git
+    pkg install git
+
+    # Luego, clona el repositorio (reemplaza con la URL correcta)
+    # git clone <URL_DEL_REPOSITORIO>
+    # cd <NOMBRE_DEL_REPOSITORIO>
+    ```
+    Si no usas `git`, simplemente asegúrate de que los archivos `bot.py` y `requirements.txt` estén en la misma carpeta en tu dispositivo.
+
+5.  **Instala las librerías de Python**: Ahora, con el archivo `requirements.txt` en tu carpeta, instala las dependencias de Python con un solo comando.
+    ```bash
+    pip install -r requirements.txt
     ```
 
 5. **Instala Chromium y Chromedriver**: Selenium necesita un navegador (Chromium) y un controlador (Chromedriver) para poder interactuar con las páginas web.
