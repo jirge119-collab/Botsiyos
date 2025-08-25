@@ -40,11 +40,27 @@ if not LOADED_ENV:
     print(bad("Es necesario crear el archivo .env usando .env.example como plantilla."))
     exit(1)
 
-# Lee las credenciales y configuraciones desde las variables de entorno.
-API_ID = getenv("API_ID")
+# --- Lectura de Credenciales y Verificación ---
+
+# Lee las credenciales desde las variables de entorno.
+API_ID_STR = getenv("API_ID")
 API_HASH = getenv("API_HASH")
 BOT_TOKEN = getenv("BOT_TOKEN")
 CHANNEL_LOGS = getenv("CHANNEL_LOGS")
+
+# Verifica que las credenciales esenciales no estén vacías.
+if not all([API_ID_STR, API_HASH, BOT_TOKEN]):
+    print(bad("Falta una o más variables de entorno críticas (API_ID, API_HASH, BOT_TOKEN)."))
+    print(bad("Asegúrate de que el archivo .env esté completo."))
+    exit(1)
+
+# **CORRECCIÓN DEL ERROR**: Convierte el API_ID a un entero.
+# El error 'OverflowError' ocurre porque Pyrogram espera un entero, no una cadena de texto.
+try:
+    API_ID = int(API_ID_STR)
+except ValueError:
+    print(bad(f"El API_ID '{API_ID_STR}' no es un número entero válido."))
+    exit(1)
 
 # --- Inicialización del Cliente de Pyrogram ---
 
