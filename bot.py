@@ -67,7 +67,7 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Ejemplo:\n"
             "```\n"
             "/donar\n"
-            "1111222233334444,12,2028,123\n"
+            "1111222233334444|12|2028|123\n"
             "```"
         )
         return
@@ -102,17 +102,17 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"💳 Intentando con {card_nickname}...")
 
         try:
-            success = await perform_donation(card)
+            success, message = await perform_donation(card)
             if success:
-                await update.message.reply_text(f"✅ ¡Donación exitosa con {card_nickname}!")
+                await update.message.reply_text(f"✅ ¡Donación exitosa con {card_nickname}!\nMotivo: {message}")
                 donation_successful = True
                 break
             else:
-                await update.message.reply_text(f"❌ Falló la donación con {card_nickname}. Intentando con la siguiente.")
+                await update.message.reply_text(f"❌ Falló la donación con {card_nickname}.\nMotivo: {message}")
 
         except Exception as e:
             logger.error(f"Error crítico al procesar {card_nickname}: {e}")
-            await update.message.reply_text(f"⚠️ Ocurrió un error inesperado con {card_nickname}. Revisa los logs.")
+            await update.message.reply_text(f"⚠️ Ocurrió un error inesperado con {card_nickname}. Revisa los logs del bot.")
 
     if not donation_successful:
         await update.message.reply_text("🛑 Proceso finalizado. Ninguna de las tarjetas pudo completar la donación.")
