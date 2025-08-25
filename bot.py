@@ -1,7 +1,9 @@
 import json
 import logging
 import os
+import asyncio
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Importar la función de automatización
@@ -35,46 +37,66 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /start y explica cómo usar /donar."""
     user_id = update.effective_user.id
     if config and user_id in config.get('allowed_user_ids', []):
-        await update.message.reply_text(
-            "¡Hola! Soy tu bot de donaciones v2. 👋\n\n"
-            "Para iniciar una donación, usa el comando /donar seguido de los datos de tus tarjetas, una por línea.\n\n"
-            "El formato para cada tarjeta es: `numero|mes|año|cvc`\n\n"
-            "**Ejemplo de uso:**\n"
-            "```\n"
-            "/donar\n"
-            "1111222233334444|12|2028|123\n"
-            "5555666677778888|06|2027|456\n"
-            "```"
-        )
+        await update.message.reply_text("Bot de pago recurrente listo. Usa /donar para iniciar.")
     else:
-        logger.warning(f"Acceso no autorizado denegado al usuario con ID: {user_id}")
         await update.message.reply_text("No tienes permiso para usar este bot.")
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /donar, que ahora activa el pago recurrente."""
+    """Maneja el comando /donar, mostrando una barra de progreso animada."""
     user_id = update.effective_user.id
     if not config or user_id not in config.get('allowed_user_ids', []):
         await update.message.reply_text("No tienes permiso para usar este bot.")
         return
 
-    await update.message.reply_text("Iniciando proceso de pago recurrente... 🚀")
+    # --- Lógica de la Barra de Progreso ---
+    progress_bar_frames = [
+        "[          ]",
+        "[■         ]",
+        "[■■        ]",
+        "[■■■       ]",
+        "[■■■■      ]",
+        "[■■■■■     ]",
+        "[■■■■■■    ]",
+        "[■■■■■■■   ]",
+        "[■■■■■■■■  ]",
+        "[■■■■■■■■■ ]",
+        "[■■■■■■■■■■]"
+    ]
 
+    # Enviar mensaje inicial
+    progress_message = await update.message.reply_text(f"Iniciando... {progress_bar_frames[0]}")
+
+    # Crear y ejecutar la tarea de automatización en segundo plano
+    automation_task = asyncio.create_task(perform_donation())
+
+    # Animar la barra de progreso mientras la tarea se ejecuta
+    frame_index = 0
+    while not automation_task.done():
+        frame_index = (frame_index + 1) % len(progress_bar_frames)
+        try:
+            await progress_message.edit_text(f"Procesando pago... {progress_bar_frames[frame_index]}")
+        except BadRequest as e:
+            if "Message is not modified" not in str(e):
+                logger.warning(f"Error al editar mensaje (ignorado): {e}")
+        await asyncio.sleep(1) # Editar el mensaje cada segundo
+
+    # --- Procesar el resultado de la tarea ---
     try:
-        success, message = await perform_donation()
+        success, message = await automation_task
         if success:
-            await update.message.reply_text(f"✅ ¡Pago exitoso!\nMotivo: {message}")
+            final_text = f"✅ ¡Pago exitoso!\nMotivo: {message}"
+            await progress_message.edit_text(final_text)
         else:
-            await update.message.reply_text(f"❌ Falló el pago.\nMotivo: {message}")
-            # Enviar captura de pantalla si existe
+            final_text = f"❌ Falló el pago.\nMotivo: {message}"
+            await progress_message.edit_text(final_text)
             if os.path.exists("post-payment-error.png"):
                 await update.message.reply_photo(
                     photo=open("post-payment-error.png", "rb"),
                     caption="Captura de pantalla del error."
                 )
-
     except Exception as e:
         logger.error(f"Error crítico al procesar el pago: {e}")
-        await update.message.reply_text(f"⚠️ Ocurrió un error inesperado. Revisa los logs del bot.")
+        await progress_message.edit_text(f"⚠️ Ocurrió un error inesperado. Revisa los logs del bot.")
 
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -92,116 +114,86 @@ async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def is_admin(user_id: int) -> bool:
     """Verifica si el user_id es el del administrador (el primero en la lista)."""
-    if not config:
-        return False
-    admin_id = config.get('allowed_user_ids', [])[0]
-    return user_id == admin_id
+    if not config or not config.get('allowed_user_ids'): return False
+    return user_id == config['allowed_user_ids'][0]
 
 def save_config(new_config: dict):
     """Guarda la configuración actualizada en el archivo config.json."""
     global config
     with open('config.json', 'w') as f:
         json.dump(new_config, f, indent=2)
-    config = new_config # Actualizar la configuración en memoria
+    config = new_config
 
 async def adduser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando de admin para añadir un nuevo usuario autorizado."""
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("Este comando solo puede ser usado por el administrador.")
         return
-
     try:
         new_user_id = int(context.args[0])
         if new_user_id not in config['allowed_user_ids']:
-            new_config = config.copy()
-            new_config['allowed_user_ids'].append(new_user_id)
-            save_config(new_config)
-            await update.message.reply_text(f"Usuario {new_user_id} añadido exitosamente.")
+            config['allowed_user_ids'].append(new_user_id)
+            save_config(config)
+            await update.message.reply_text(f"Usuario {new_user_id} añadido.")
         else:
-            await update.message.reply_text(f"El usuario {new_user_id} ya está en la lista.")
+            await update.message.reply_text("El usuario ya está en la lista.")
     except (IndexError, ValueError):
         await update.message.reply_text("Uso: /adduser <ID_del_usuario>")
 
 async def removeuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando de admin para quitar a un usuario autorizado."""
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("Este comando solo puede ser usado por el administrador.")
-        return
-
+    if not is_admin(update.effective_user.id): return
     try:
         user_to_remove = int(context.args[0])
         if user_to_remove == config['allowed_user_ids'][0]:
             await update.message.reply_text("No puedes eliminar al administrador.")
             return
-
         if user_to_remove in config['allowed_user_ids']:
-            new_config = config.copy()
-            new_config['allowed_user_ids'].remove(user_to_remove)
-            save_config(new_config)
-            await update.message.reply_text(f"Usuario {user_to_remove} eliminado exitosamente.")
+            config['allowed_user_ids'].remove(user_to_remove)
+            save_config(config)
+            await update.message.reply_text(f"Usuario {user_to_remove} eliminado.")
         else:
-            await update.message.reply_text(f"El usuario {user_to_remove} no se encuentra en la lista.")
+            await update.message.reply_text("El usuario no se encuentra en la lista.")
     except (IndexError, ValueError):
         await update.message.reply_text("Uso: /removeuser <ID_del_usuario>")
 
 async def listusers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando de admin para listar todos los usuarios autorizados."""
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("Este comando solo puede ser usado por el administrador.")
-        return
-
+    if not is_admin(update.effective_user.id): return
     user_list = "\n".join([f"- `{uid}`" for uid in config.get('allowed_user_ids', [])])
     admin_id = config.get('allowed_user_ids', [None])[0]
-    message = f"**Lista de Usuarios Autorizados:**\n{user_list}\n\nEl administrador es: `{admin_id}`"
+    message = f"**Usuarios Autorizados:**\n{user_list}\n\nEl administrador es: `{admin_id}`"
     await update.message.reply_text(message, parse_mode='Markdown')
 
-
 async def cmds_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra una lista de todos los comandos disponibles."""
     user_id = update.effective_user.id
     is_user_admin = is_admin(user_id)
     is_user_allowed = user_id in config.get('allowed_user_ids', [])
-
-    # Construir el mensaje de ayuda
-    help_text = "📜 **Comandos Disponibles** 📜\n\n"
-    help_text += "**/id** - Muestra tu ID de usuario de Telegram.\n\n"
-
-    if is_user_allowed:
-        help_text += "**/donar** - Inicia el proceso de donación.\n_(Debes pasar los datos de la tarjeta en el mensaje)_\n\n"
-
-    if is_user_admin:
-        help_text += "--- **Comandos de Administrador** ---\n"
-        help_text += "**/adduser <ID>** - Autoriza a un nuevo usuario.\n"
-        help_text += "**/removeuser <ID>** - Revoca el acceso a un usuario.\n"
-        help_text += "**/listusers** - Muestra la lista de usuarios autorizados.\n"
-
-    help_text += "\n**.cmds** - Muestra este mensaje de ayuda."
-
+    help_text = "📜 **Comandos Disponibles** 📜\n\n/id - Muestra tu ID.\n/ping - Verifica si el bot está activo.\n"
+    if is_user_allowed: help_text += "/donar - Inicia el pago recurrente.\n"
+    if is_user_admin: help_text += "\n--- Admin ---\n/adduser <ID>\n/removeuser <ID>\n/listusers\n"
+    help_text += "\n.cmds - Muestra esta ayuda."
     await update.message.reply_text(help_text, parse_mode='Markdown')
-
 
 # --- Función Principal ---
 def main():
-    """Inicia el bot de Telegram."""
-    if not config:
-        return
-
+    if not config: return
     bot_token = config.get('telegram_bot_token')
     if not bot_token or bot_token == "AQUI_VA_TU_TOKEN_DE_TELEGRAM":
-        logger.error("El token del bot de Telegram no está configurado en 'config.json'.")
+        logger.error("Token no configurado en 'config.json'.")
         return
 
     application = Application.builder().token(bot_token).build()
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("donar", donate_command))
-    application.add_handler(CommandHandler("id", id_command))
-    application.add_handler(CommandHandler("ping", ping_command))
-    application.add_handler(CommandHandler("adduser", adduser_command))
-    application.add_handler(CommandHandler("removeuser", removeuser_command))
-    application.add_handler(CommandHandler("listusers", listusers_command))
-    application.add_handler(MessageHandler(filters.Regex(r'^\.cmds$'), cmds_command))
+    handlers = [
+        CommandHandler("start", start_command),
+        CommandHandler("donar", donate_command),
+        CommandHandler("id", id_command),
+        CommandHandler("ping", ping_command),
+        CommandHandler("adduser", adduser_command),
+        CommandHandler("removeuser", removeuser_command),
+        CommandHandler("listusers", listusers_command),
+        MessageHandler(filters.Regex(r'^\.cmds$'), cmds_command)
+    ]
+    application.add_handlers(handlers)
 
-    logger.info("El bot se ha iniciado y está escuchando...")
+    logger.info("El bot se ha iniciado...")
     application.run_polling()
 
 if __name__ == '__main__':
