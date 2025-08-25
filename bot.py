@@ -52,21 +52,33 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No hay tarjetas de crédito configuradas en `config.json`.")
         return
 
-    await update.message.reply_text(f"Iniciando proceso de donación con {len(config['credit_cards'])} tarjeta(s)...")
+    progress_bar_frames = ["[□□□□□]", "[■□□□□]", "[■■□□□]", "[■■■□□]", "[■■■■□]", "[■■■■■]"]
+    progress_message = await update.message.reply_text(f"Iniciando... {progress_bar_frames[0]}")
 
-    # Llamar a la función de automatización con toda la configuración
-    success, message, screenshot_paths = await perform_donation(config)
+    automation_task = asyncio.create_task(perform_donation(config))
 
-    if success:
-        await update.message.reply_text(f"✅ ¡Éxito! {message}")
-    else:
-        await update.message.reply_text(f"❌ Fallo. {message}")
-        if screenshot_paths:
-            await update.message.reply_text("Se generaron los siguientes informes de error:")
-            for path in screenshot_paths:
-                if os.path.exists(path):
-                    await update.message.reply_photo(photo=open(path, "rb"))
-                    os.remove(path) # Limpiar después de enviar
+    frame_index = 0
+    while not automation_task.done():
+        frame_index = (frame_index + 1) % len(progress_bar_frames)
+        try:
+            await progress_message.edit_text(f"Procesando... {progress_bar_frames[frame_index]}")
+        except BadRequest as e:
+            if "Message is not modified" not in str(e):
+                logger.warning(f"Error al editar mensaje (ignorado): {e}")
+        await asyncio.sleep(1.5)
+
+    # --- Procesar el resultado ---
+    success, message, screenshot_paths = await automation_task
+
+    final_text = f"✅ ¡Éxito! {message}" if success else f"❌ Fallo. {message}"
+    await progress_message.edit_text(final_text)
+
+    if not success and screenshot_paths:
+        await update.message.reply_text("Se generaron los siguientes informes de error:")
+        for path in screenshot_paths:
+            if os.path.exists(path):
+                await update.message.reply_photo(photo=open(path, "rb"))
+                os.remove(path) # Limpiar después de enviar
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Devuelve el ID de usuario de Telegram."""

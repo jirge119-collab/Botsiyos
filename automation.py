@@ -12,10 +12,7 @@ SELECTORS = {
     "boton_donar": 'button[type="submit"]', # Botón que avanza al siguiente paso
 
     # --- Datos Personales ---
-    "nombre": 'input[name="name"]',
-    "apellido": 'input[name="lastname"]',
     "email": 'input[name="email"]',
-    "rut": 'input[name="rut"]',
     "telefono": 'input[name="phone"]',
     "boton_siguiente_datos": 'button[type="submit"]', # Botón para ir al pago
 
@@ -60,14 +57,14 @@ async def perform_donation(donation_config: dict) -> tuple[bool, str, list[str]]
                 await page.locator(SELECTORS["boton_donar"]).click()
 
                 # --- Paso 2: Rellenar datos personales ---
-                await page.wait_for_selector(SELECTORS["nombre"], timeout=15000)
+                await page.wait_for_selector(SELECTORS["email"], timeout=15000)
                 personal_info = donation_config['personal_info']
-                await page.locator(SELECTORS["nombre"]).fill(personal_info['nombre'])
-                await page.locator(SELECTORS["apellido"]).fill(personal_info['apellido'])
+                # await page.locator(SELECTORS["nombre"]).fill(personal_info['nombre'])
+                # await page.locator(SELECTORS["apellido"]).fill(personal_info['apellido'])
                 await page.locator(SELECTORS["email"]).fill(personal_info['email'])
-                await page.locator(SELECTORS["rut"]).fill(personal_info['rut'])
+                # await page.locator(SELECTORS["rut"]).fill(personal_info['rut'])
                 # El campo teléfono no está en el config original, se puede añadir si es necesario.
-                # await page.locator(SELECTORS["telefono"]).fill("912345678")
+                await page.locator(SELECTORS["telefono"]).fill("912345678") # Este campo es opcional
                 await page.locator(SELECTORS["boton_siguiente_datos"]).click()
 
                 # --- Paso 3: Rellenar datos de tarjeta en el iframe ---
