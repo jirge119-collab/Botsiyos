@@ -68,17 +68,27 @@ async def perform_donation(donation_config: dict) -> tuple[bool, str, list[str]]
                 await page.locator(SELECTORS["boton_siguiente_datos"]).click()
 
                 # --- Paso 3: Rellenar datos de tarjeta en el iframe ---
+                print("Localizando el iframe de pago...")
                 payment_frame_locator = page.frame_locator(SELECTORS["iframe_pago"])
                 card_selectors = SELECTORS["tarjeta"]
 
+                print("Esperando que el campo de número de tarjeta sea visible...")
                 await payment_frame_locator.locator(card_selectors["numero"]).wait_for(state="visible", timeout=20000)
 
+                print("Rellenando número de tarjeta...")
                 await payment_frame_locator.locator(card_selectors["numero"]).fill(card_info['card_number'])
+
+                print("Rellenando nombre del titular...")
                 await payment_frame_locator.locator(card_selectors["nombre_titular"]).fill(f"{personal_info['nombre']} {personal_info['apellido']}")
+
                 expiry_date = f"{card_info['expiry_month']}{card_info['expiry_year'][-2:]}"
+                print("Rellenando fecha de expiración...")
                 await payment_frame_locator.locator(card_selectors["expiracion"]).fill(expiry_date)
+
+                print("Rellenando CVC...")
                 await payment_frame_locator.locator(card_selectors["cvc"]).fill(card_info['cvc'])
 
+                print("Haciendo clic en el botón de pagar...")
                 await payment_frame_locator.locator(card_selectors["boton_pagar"]).click()
 
                 # --- Paso 4: Verificar el resultado ---
