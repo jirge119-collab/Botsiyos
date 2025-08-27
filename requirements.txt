@@ -1,5 +1,3 @@
-pyrogram
-pyromod
+python-telegram-bot[ext]
 python-dotenv
-huepy
-TgCrypto
+--pre
